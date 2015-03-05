@@ -15,6 +15,7 @@ executable clash-ranker
   ghc-options:        -O2 -Wall -threaded
   build-depends:      base,
                       aeson,
+                      hedis,
                       servant,
                       servant-server,
                       stm,
