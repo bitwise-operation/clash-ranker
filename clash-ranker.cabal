@@ -16,6 +16,7 @@ executable clash-ranker
   build-depends:      base,
                       aeson,
                       bytestring,
+                      bytestring-lexing,
                       hedis,
                       servant,
                       servant-server,
