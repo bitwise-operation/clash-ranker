@@ -1,7 +1,7 @@
 name:          clash-ranker
 version:       1.0
 build-type:    Simple
-cabal-version: >= 1.20
+cabal-version: >= 1.18
 
 executable clash-ranker
   main-is:            Main.hs
@@ -15,9 +15,7 @@ executable clash-ranker
   ghc-options:        -O2 -Wall -threaded
   build-depends:      base,
                       aeson,
-                      alex,
                       bytestring,
-                      bytestring-lexing,
                       hedis,
                       servant,
                       servant-server,
