@@ -1,23 +1,23 @@
 import Control.Arrow
 import Control.Monad.IO.Class
 import Data.Aeson
-import qualified Data.ByteString.Char8 as B
 import Data.ByteString.Lazy (toStrict)
 import Data.Maybe
-import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
 import Database.Redis (runRedis)
-import qualified Database.Redis as Redis
 import GHC.Generics
 import Network.Wai.Handler.Warp
 import Servant
 import System.Environment
 import System.IO
 
+import qualified Data.ByteString.Char8 as B
+import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Database.Redis as Redis
 
 
 data Match = Match
