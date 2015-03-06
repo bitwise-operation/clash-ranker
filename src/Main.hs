@@ -2,14 +2,13 @@ import Control.Arrow
 import Control.Monad.IO.Class
 import Data.Aeson
 import qualified Data.ByteString.Char8 as B
-import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.Maybe
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
-import Database.Redis (Redis, Reply, runRedis)
+import Database.Redis (runRedis)
 import qualified Database.Redis as Redis
 import GHC.Generics
 import Network.Wai.Handler.Warp
@@ -18,16 +17,15 @@ import System.Environment
 import System.IO
 
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 
 
 data Match = Match
     { guid :: Text
-    , creator_id :: Text
-    , opponent_id :: Text
-    , creator_score :: Int
-    , opponent_score :: Int
+    , creatorId :: Text
+    , opponentId :: Text
+    , creatorScore :: Int
+    , opponentScore :: Int
     }
   deriving (Generic, Show)
 
@@ -36,19 +34,19 @@ instance ToJSON Match
 
 type MatchAPI =
          Get Text
-    :<|> "matches" :> Get [Match]
+    :<|> "matches" :> Get (Either (Int, String) [Match])
     :<|> "match" :> ReqBody Match :> Post Match
 
 noteAPI :: Proxy MatchAPI
 noteAPI =
     Proxy
 
-getMatches :: MonadIO m => Redis.Connection -> m [Match]
+getMatches :: MonadIO m => Redis.Connection -> m (Either (Int,String) [Match])
 getMatches redisConn = do
-    let redisCmd = Redis.smembers "matches"
-    matchPkeys' <- liftIO (runRedis redisConn redisCmd)
+    matchPkeys' <- liftIO $ runRedis redisConn $ Redis.smembers "matches"
     let matchPkeys = either (error . show) id matchPkeys'
-    mapM pkeyToMatch matchPkeys
+    ms <- mapM pkeyToMatch matchPkeys
+    return (Right ms)
     where pkeyToMatch pkey = do
             Right attrs' <- liftIO $ runRedis redisConn $ Redis.hmget pkey ["creator_id", "opponent_id", "creator_score", "opponent_score"]
             let [cid, oid, cs, os] = catMaybes attrs'
@@ -57,13 +55,13 @@ getMatches redisConn = do
 postMatch :: MonadIO m => Redis.Connection -> Match -> m Match
 postMatch redisConn match =
     liftIO $ do
-      let attrs = [ ("creator_id", creator_id match)
-                  , ("opponent_id", opponent_id match)
-                  , ("creator_score", T.pack . show $ creator_score match)
-                  , ("opponent_score", T.pack . show $ opponent_score match)
+      let attrs = [ ("creator_id", creatorId match)
+                  , ("opponent_id", opponentId match)
+                  , ("creator_score", T.pack . show $ creatorScore match)
+                  , ("opponent_score", T.pack . show $ opponentScore match)
                   ]
           pkey = "match:" <> T.encodeUtf8 (guid match)
-      _ <- liftIO $ runRedis redisConn $ Redis.hmset pkey (map (id *** T.encodeUtf8) attrs)
+      _ <- liftIO $ runRedis redisConn $ Redis.hmset pkey (map (second T.encodeUtf8) attrs)
       _ <- liftIO $ runRedis redisConn $ Redis.sadd "matches" [pkey]
       return match
 
