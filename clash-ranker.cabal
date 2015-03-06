@@ -1,6 +1,7 @@
 name:          clash-ranker
 version:       1.0
 build-type:    Simple
+cabal-version: >= 1.2
 
 executable clash-ranker
   main-is:            Main.hs
