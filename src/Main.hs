@@ -1,8 +1,10 @@
-import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Data.Aeson
+import Data.ByteString (ByteString)
 import Data.Proxy
-import Data.Text
+import Data.Text (Text)
+import Database.Redis (Redis, Reply, runRedis)
+import qualified Database.Redis as Redis
 import GHC.Generics
 import Network.Wai.Handler.Warp
 import Servant
@@ -11,6 +13,7 @@ import System.IO
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Text.Encoding as T
 
 
 newtype Note = Note
@@ -22,23 +25,19 @@ instance FromJSON Note
 instance ToJSON Note
 
 
-emptyNotes :: IO (TVar [Note])
-emptyNotes =
-    newTVarIO []
+getNotes :: MonadIO m => Redis.Connection -> m [Note]
+getNotes redisConn = do
+    let redisCmd = Redis.lrange "foo" 0 (-1) :: Redis (Either Reply [ByteString])
+    ts' <- liftIO (runRedis redisConn redisCmd)
+    let ts = either (error . show) id ts'
+    return $ map (Note . T.decodeUtf8) ts
 
-getNotes :: MonadIO m => TVar [Note] -> m [Note]
-getNotes notes =
-    liftIO $ readTVarIO notes
-
-postNote :: MonadIO m => TVar [Note] -> Note -> m [Note]
-postNote notes note =
+postNote :: MonadIO m => Redis.Connection -> Note -> m [Note]
+postNote redisConn note =
     liftIO $ do
       T.putStrLn $ contents note
-      atomically $ do
-        oldNotes <- readTVar notes
-        let newNotes = note : oldNotes
-        writeTVar notes newNotes
-        return newNotes
+      _ <- liftIO $ runRedis redisConn $ Redis.lpush "foo" [T.encodeUtf8 $ contents note]
+      return []
 
 
 type NoteAPI =
@@ -50,11 +49,11 @@ noteAPI :: Proxy NoteAPI
 noteAPI =
     Proxy
 
-server :: Text -> TVar [Note] -> Server NoteAPI
-server home notes =
+server :: Text -> Redis.Connection -> Server NoteAPI
+server home conn =
          return home
-    :<|> getNotes notes
-    :<|> postNote notes
+    :<|> getNotes conn
+    :<|> postNote conn
 
 
 main :: IO ()
@@ -64,5 +63,5 @@ main = do
     let port = maybe 8080 read $ lookup "PORT" env
         home = maybe "Welcome to Haskell on Heroku" T.pack $
                  lookup "TUTORIAL_HOME" env
-    notes <- emptyNotes
-    run port $ serve noteAPI $ server home notes
+    redisConn <- Redis.connect Redis.defaultConnectInfo
+    run port $ serve noteAPI $ server home redisConn
